@@ -1,66 +1,81 @@
-import cv2
-import os
-from ultralytics import YOLO
-from tqdm import tqdm
+"""
+Command line helper for the Sherlocked object detection service.
 
-VIDEO_PATH = "video.MOV"      
-FRAME_FOLDER = "frames"       
-FRAME_RATE = 1                
-TARGET_OBJECT = "black_pen"      
+Example usage:
+    python main.py --video path/to/video.mp4 --target person --frame-interval 1.5
+"""
 
-os.makedirs(FRAME_FOLDER, exist_ok=True)
+from __future__ import annotations
 
-model = YOLO("model.pt")  
+import argparse
+import json
+from pathlib import Path
 
-video = cv2.VideoCapture(VIDEO_PATH)
-fps = int(video.get(cv2.CAP_PROP_FPS))
-frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-duration = frame_count / fps
+from backend.app.services.detector import detector_service
 
-print(f"Video length: {duration:.2f}s | FPS: {fps}")
 
-frames = []
-frame_id = 0
-second = 0
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run YOLO object detection on a video.")
+    parser.add_argument(
+        "--video",
+        type=Path,
+        required=True,
+        help="Path to the input video file.",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Optional specific object class to highlight (case-insensitive).",
+    )
+    parser.add_argument(
+        "--frame-interval",
+        type=float,
+        default=1.0,
+        help="Seconds between sampled frames during inference.",
+    )
+    parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.3,
+        help="Minimum confidence threshold for detections.",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional path to write the detections JSON output.",
+    )
+    return parser.parse_args()
 
-while True:
-    ret, frame = video.read()
-    if not ret:
-        break
 
-    
-    if int(video.get(1)) % fps == 0:
-        frame_path = os.path.join(FRAME_FOLDER, f"frame_{second}.jpg")
-        cv2.imwrite(frame_path, frame)
-        frames.append(frame_path)
-        second += 1
+def main() -> None:
+    args = parse_args()
 
-video.release()
-print(f"Extracted {len(frames)} frames.")
+    result = detector_service.process_video(
+        video_path=args.video,
+        frame_interval_seconds=args.frame_interval,
+        min_confidence=args.min_confidence,
+        target_object=args.target,
+    )
 
-detections = []
+    summary = result["summary"]
 
-for frame_path in tqdm(frames, desc="Detecting objects"):
-    results = model(frame_path, verbose=False)
-    names = results[0].names
-    detected_classes = [names[int(cls)] for cls in results[0].boxes.cls]
+    print(
+        f"Processed video '{args.video}': "
+        f"{summary['processed_frames']} frames sampled, "
+        f"{summary['detections_found']} frames with detections, "
+        f"{summary['target_hits']} target hits"
+    )
 
-    if TARGET_OBJECT in detected_classes:
-        
-        timestamp = int(frame_path.split("_")[-1].split(".")[0])
-        detections.append(timestamp)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2))
+        print(f"Detection results written to {args.output}")
+    else:
+        print(json.dumps(result, indent=2))
 
-if detections:
-    with open("detections.txt", "w") as f:
-        for t in detections:
-            mins = t // 60
-            secs = t % 60
-            f.write(f"Detected {TARGET_OBJECT} at {mins:02d}:{secs:02d}\n")
 
-    print(f"\n✅ {TARGET_OBJECT.capitalize()} detected at:")
-    for t in detections:
-        mins = t // 60
-        secs = t % 60
-        print(f" - {mins:02d}:{secs:02d}")
-else:
-    print(f"\nNo '{TARGET_OBJECT}' detected.")
+if __name__ == "__main__":
+    main()
+
