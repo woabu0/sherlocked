@@ -1,46 +1,46 @@
-// app/page.tsx
-'use client';
+"use client";
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Detection,
   DetectionResult,
   DetectionSummary,
   ProcessVideoResponse,
-} from '@/types';
+} from "@/types";
 
 const MIN_CONFIDENCE = 0.6;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 const STOPWORDS = new Set([
-  'find',
-  'show',
-  'frame',
-  'frames',
-  'with',
-  'please',
-  'can',
-  'you',
-  'the',
-  'a',
-  'an',
-  'any',
-  'all',
-  'of',
-  'for',
-  'look',
-  'search',
-  'detect',
-  'spot',
-  'every',
-  'and',
-  'to',
-  'in',
-  'on',
-  'at',
-  'video',
-  'footage',
-  'frames',
-  'objects',
+  "find",
+  "show",
+  "frame",
+  "frames",
+  "with",
+  "please",
+  "can",
+  "you",
+  "the",
+  "a",
+  "an",
+  "any",
+  "all",
+  "of",
+  "for",
+  "look",
+  "search",
+  "detect",
+  "spot",
+  "every",
+  "and",
+  "to",
+  "in",
+  "on",
+  "at",
+  "video",
+  "footage",
+  "frames",
+  "objects",
 ]);
 
 type FrameMatch = {
@@ -53,15 +53,16 @@ type FrameMatch = {
 
 type ChatMessage = {
   id: number;
-  role: 'assistant' | 'user';
+  role: "assistant" | "user";
   content?: string;
   frames?: FrameMatch[];
+  timestamp: Date;
 };
 
 const formatTimestamp = (seconds: number) => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
 export default function Home() {
@@ -71,17 +72,27 @@ export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: Date.now(),
-      role: 'assistant',
+      role: "assistant",
       content:
-        '👋 Tap the camera icon to upload a video. I’ll slice it into frames, then you can ask in natural language what to find.',
+        "I am your personal AI detective. Upload a video and I'll help you find what you're looking for.",
+      timestamp: new Date(),
     },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [lightboxFrame, setLightboxFrame] = useState<FrameMatch | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const appendMessage = useCallback(
-    (role: 'assistant' | 'user', content?: string, frames?: FrameMatch[]) => {
+    (role: "assistant" | "user", content?: string, frames?: FrameMatch[]) => {
       setMessages((prev) => [
         ...prev,
         {
@@ -89,6 +100,7 @@ export default function Home() {
           role,
           content,
           frames,
+          timestamp: new Date(),
         },
       ]);
     },
@@ -96,8 +108,8 @@ export default function Home() {
   );
 
   const handleLog = useCallback(
-    (message: string, role: 'assistant' | 'system' = 'assistant') => {
-      appendMessage(role === 'system' ? 'assistant' : role, message);
+    (message: string, role: "assistant" | "system" = "assistant") => {
+      appendMessage(role === "system" ? "assistant" : role, message);
     },
     [appendMessage]
   );
@@ -139,9 +151,9 @@ export default function Home() {
     async (text: string): Promise<string[]> => {
       try {
         const response = await fetch(`${BACKEND_URL}/api/intent`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: text }),
         });
@@ -151,7 +163,7 @@ export default function Home() {
           if (Array.isArray(data.targets)) {
             const targets = data.targets
               .map((target: unknown) =>
-                typeof target === 'string' ? target.trim().toLowerCase() : ''
+                typeof target === "string" ? target.trim().toLowerCase() : ""
               )
               .filter((target: string) => target && !STOPWORDS.has(target));
             if (targets.length) {
@@ -160,13 +172,16 @@ export default function Home() {
           }
         }
       } catch (error) {
-        console.error('Intent parsing failed:', error);
-        handleLog('I had trouble interpreting that. I will fall back to keywords.', 'assistant');
+        console.error("Intent parsing failed:", error);
+        handleLog(
+          "I had trouble interpreting that. I will fall back to keywords.",
+          "assistant"
+        );
       }
 
-      const fallback = (text.toLowerCase().match(/\b[a-z]{3,}\b/g) ?? []).filter(
-        (word) => !STOPWORDS.has(word)
-      );
+      const fallback = (
+        text.toLowerCase().match(/\b[a-z]{3,}\b/g) ?? []
+      ).filter((word) => !STOPWORDS.has(word));
       return Array.from(new Set(fallback));
     },
     [handleLog]
@@ -178,21 +193,23 @@ export default function Home() {
       setSummary(null);
       setResults([]);
       handleLog(
-        `Uploading “${file.name}” (${(file.size / (1024 * 1024)).toFixed(2)} MB). Sit tight while I extract frames…`,
-        'assistant'
+        `Uploading "${file.name}" (${(file.size / (1024 * 1024)).toFixed(
+          2
+        )} MB). Sit tight while I extract frames...`,
+        "assistant"
       );
 
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
 
       try {
         const response = await fetch(`${BACKEND_URL}/api/process-video`, {
-          method: 'POST',
+          method: "POST",
           body: formData,
         });
 
         if (!response.ok) {
-          let errorDetail = 'Failed to process video';
+          let errorDetail = "Failed to process video";
           try {
             const errorData = await response.json();
             errorDetail = errorData.detail || errorData.error || errorDetail;
@@ -204,7 +221,7 @@ export default function Home() {
 
         const data: ProcessVideoResponse = await response.json();
         if (!data.success) {
-          throw new Error(data.error || 'Processing failed');
+          throw new Error(data.error || "Processing failed");
         }
 
         setResults(data.results ?? []);
@@ -212,18 +229,22 @@ export default function Home() {
 
         if (data.summary) {
           handleLog(
-            `Done! Processed ${data.summary.processed_frames} frames in ${data.summary.duration_seconds.toFixed(
+            `Done! Processed ${
+              data.summary.processed_frames
+            } frames in ${data.summary.duration_seconds.toFixed(
               1
             )}s. Ask me which objects to pull up.`,
-            'assistant'
+            "assistant"
           );
         } else {
-          handleLog('Video processed. Ready for queries.', 'assistant');
+          handleLog("Video processed. Ready for queries.", "assistant");
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Error processing video. Please try again.';
-        handleLog(message, 'assistant');
+          error instanceof Error
+            ? error.message
+            : "Error processing video. Please try again.";
+        handleLog(message, "assistant");
         alert(message);
       } finally {
         setIsProcessing(false);
@@ -240,18 +261,18 @@ export default function Home() {
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith('video/')) {
-        alert('Please select a valid video file (MP4, AVI, MOV, etc.).');
-        event.target.value = '';
+      if (!file.type.startsWith("video/")) {
+        alert("Please select a valid video file (MP4, AVI, MOV, etc.).");
+        event.target.value = "";
         return;
       }
       if (file.size > 500 * 1024 * 1024) {
-        alert('Video file too large. Please select a file smaller than 500MB.');
-        event.target.value = '';
+        alert("Video file too large. Please select a file smaller than 500MB.");
+        event.target.value = "";
         return;
       }
       void processVideo(file);
-      event.target.value = '';
+      event.target.value = "";
     },
     [processVideo]
   );
@@ -262,19 +283,22 @@ export default function Home() {
       const message = input.trim();
       if (!message) return;
 
-      appendMessage('user', message);
-      setInput('');
+      appendMessage("user", message);
+      setInput("");
 
       if (!results.length) {
         appendMessage(
-          'assistant',
-          'Please upload a video first so I can extract frames before searching for objects.'
+          "assistant",
+          "Please upload a video first so I can extract frames before searching for objects."
         );
         return;
       }
 
       if (isProcessing) {
-        appendMessage('assistant', 'Hang on—your footage is still being processed.');
+        appendMessage(
+          "assistant",
+          "Hang on—your footage is still being processed."
+        );
         return;
       }
 
@@ -282,7 +306,7 @@ export default function Home() {
 
       if (!targets.length) {
         appendMessage(
-          'assistant',
+          "assistant",
           "I'm not sure what objects to look for there. Try mentioning the items explicitly."
         );
         return;
@@ -292,204 +316,359 @@ export default function Home() {
 
       if (!matches.length) {
         appendMessage(
-          'assistant',
-          `I searched for ${targets.join(', ')} but couldn't spot them in this footage.`
+          "assistant",
+          `I searched for ${targets.join(
+            ", "
+          )} but couldn't spot them in this footage.`
         );
         return;
       }
 
       const matchedLabels = Array.from(
-        new Set(matches.flatMap((frame) => frame.objects.map((obj) => obj.class.toLowerCase())))
+        new Set(
+          matches.flatMap((frame) =>
+            frame.objects.map((obj) => obj.class.toLowerCase())
+          )
+        )
       );
 
-      const summaryLine = `Here ${matches.length > 1 ? 'are' : 'is'} ${matches.length} frame${
-        matches.length > 1 ? 's' : ''
-      } showing ${matchedLabels.join(', ')}.`;
+      const summaryLine = `Here ${matches.length > 1 ? "are" : "is"} ${
+        matches.length
+      } frame${matches.length > 1 ? "s" : ""} showing ${matchedLabels.join(
+        ", "
+      )}.`;
 
-      appendMessage('assistant', summaryLine, matches);
+      appendMessage("assistant", summaryLine, matches);
     },
-    [appendMessage, findMatchingFrames, input, interpretQuery, isProcessing, results.length]
+    [
+      appendMessage,
+      findMatchingFrames,
+      input,
+      interpretQuery,
+      isProcessing,
+      results.length,
+    ]
   );
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-10 pb-52">
-        <header className="space-y-4 text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-emerald-200">
-            Sherlocked Vision
-          </div>
-          <h1 className="text-4xl font-bold text-slate-50">Video Object Detective</h1>
-          <p className="text-sm text-slate-400 max-w-2xl">
-            Upload surveillance footage, let the model slice it into frames, then ask in natural
-            language for any objects to track. Only detections with at least 60% confidence are shown.
-          </p>
-        </header>
+    <main className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
+      <div className="w-full flex flex-col h-full">
+        {/* Header */}
+        <div className="mb-3 flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h1 className="text-2xl font-semibold text-slate-50">Sherlocked</h1>
+          {summary && (
+            <div className="flex items-center gap-4 text-xs">
+              <div className="text-slate-400">
+                <span className="font-semibold" style={{ color: "#0C8CE9" }}>
+                  {summary.processed_frames}
+                </span>{" "}
+                frames
+              </div>
+              <div className="text-slate-400">
+                <span className="font-semibold" style={{ color: "#0C8CE9" }}>
+                  {summary.detections_found}
+                </span>{" "}
+                detections
+              </div>
+            </div>
+          )}
+        </div>
 
-        {summary ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <SummaryTile
-              label="Frames Processed"
-              value={summary.processed_frames.toString()}
-              description={`${summary.frame_interval_seconds}s sampling`}
-            />
-            <SummaryTile
-              label="Detections Found"
-              value={summary.detections_found.toString()}
-              description={`${summary.processed_frames} frames checked`}
-            />
-            <SummaryTile
-              label="Target Hits"
-              value={summary.target_hits.toString()}
-              description={summary.target_object ? summary.target_object : 'Awaiting query'}
-            />
-            <SummaryTile
-              label="Video Duration"
-              value={formatTimestamp(summary.duration_seconds)}
-              description={`${Math.round(summary.fps)} FPS`}
-            />
-          </div>
-        ) : (
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-400">
-            Upload a video to generate summary metrics. After processing, you can ask for objects using
-            everyday language like “Find the person holding a laptop”.
-          </div>
-        )}
-
-        <div className="flex-1">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 backdrop-blur shadow-2xl shadow-black/40">
+        {/* Main chat container */}
+        <div className="flex-1 mx-auto w-full max-w-4xl flex flex-col px-6 overflow-hidden">
+          <div className="p-6 flex flex-col h-full min-h-0">
+            {/* Scrollable messages container */}
             <div
-              className="scrollbar-thin max-h-[68vh] overflow-y-auto px-6 py-8 space-y-4"
-              style={{ maxHeight: 'calc(100vh - 260px)' }}
+              className="space-y-4 mb-4 flex-1 overflow-y-auto min-h-0 hide-scrollbar"
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
-              {messages.map((message) => (
+              {messages.length === 0 && (
+                <div className="text-center text-slate-400 flex items-center justify-center gap-2 h-full">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="h-8 w-8"
+                  >
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                    <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                  </svg>
+                  <span className="text-lg">
+                    Hi, I'm Sherlocked. Upload a video to get started!
+                  </span>
+                </div>
+              )}
+
+              {messages.map((msg) => (
                 <div
-                  key={message.id}
-                  className={`flex ${
-                    message.role === 'assistant' ? 'justify-start' : 'justify-end'
+                  key={msg.id}
+                  className={`flex items-start gap-3 ${
+                    msg.role === "user" ? "flex-row-reverse" : ""
                   }`}
                 >
+                  {/* Avatar */}
                   <div
-                    className={`w-full max-w-[85%] rounded-3xl px-5 py-4 text-sm leading-relaxed shadow-lg ${
-                      message.role === 'assistant'
-                        ? 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
-                        : 'bg-emerald-500 text-slate-950 font-semibold'
+                    className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                      msg.role === "user" ? "" : "bg-slate-700"
+                    }`}
+                    style={
+                      msg.role === "user" ? { backgroundColor: "#0C8CE9" } : {}
+                    }
+                  >
+                    {msg.role === "user" ? (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        className="h-5 w-5 text-slate-950"
+                      >
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    ) : (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        className="h-5 w-5 text-slate-200"
+                      >
+                        <rect x="3" y="8" width="18" height="12" rx="2" />
+                        <rect x="7" y="2" width="10" height="6" rx="1" />
+                        <circle cx="9" cy="14" r="1.5" />
+                        <circle cx="15" cy="14" r="1.5" />
+                        <path d="M9 18h6" />
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Message content */}
+                  <div
+                    className={`flex-1 ${
+                      msg.role === "user" ? "text-right" : ""
                     }`}
                   >
-                    {message.content && <p>{message.content}</p>}
+                    <div
+                      className={`inline-block rounded-2xl px-4 py-3 max-w-[85%] ${
+                        msg.role === "user"
+                          ? "text-slate-950"
+                          : "bg-slate-800 text-slate-100 border border-slate-700"
+                      }`}
+                      style={
+                        msg.role === "user" ? { backgroundColor: "#0C8CE9" } : {}
+                      }
+                    >
+                      {msg.content && (
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+                      )}
 
-                    {message.frames && message.frames.length > 0 && (
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {message.frames.map((frame) => (
-                          <button
-                            key={`${frame.frameIndex}-${frame.timestamp}`}
-                            type="button"
-                            onClick={() => setLightboxFrame(frame)}
-                            className="group relative overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 transition-transform hover:-translate-y-1"
-                          >
-                            {frame.image ? (
-                              <img
-                                src={`data:image/jpeg;base64,${frame.image}`}
-                                alt={`Frame ${frame.frameIndex}`}
-                                className="h-40 w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-40 w-full items-center justify-center bg-slate-800 text-xs text-slate-400">
-                                No preview available
-                              </div>
-                            )}
-                            <div className="absolute inset-0 bg-linear-to-t from-slate-950/80 via-transparent" />
-                            <div className="absolute left-3 bottom-3 flex items-center gap-2 text-xs font-semibold text-emerald-200">
-                              <span className="rounded-full bg-slate-950/70 px-2 py-1">
+                      {/* Frame gallery */}
+                      {msg.frames && msg.frames.length > 0 && (
+                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {msg.frames.map((frame) => (
+                            <button
+                              key={`${frame.frameIndex}-${frame.timestamp}`}
+                              type="button"
+                              onClick={() => setLightboxFrame(frame)}
+                              className="group relative overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60 transition-transform hover:scale-105"
+                            >
+                              {frame.image ? (
+                                <img
+                                  src={`data:image/jpeg;base64,${frame.image}`}
+                                  alt={`Frame ${frame.frameIndex}`}
+                                  className="h-32 w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-32 w-full items-center justify-center bg-slate-800 text-xs text-slate-400">
+                                  No preview
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-linear-to-t from-slate-950/80 via-transparent" />
+                              <div
+                                className="absolute left-2 bottom-2 text-xs font-semibold"
+                                style={{ color: "#0C8CE9" }}
+                              >
                                 {frame.timestampFormatted}
-                              </span>
-                              <span className="rounded-full bg-slate-950/40 px-2 py-1">
-                                Frame #{frame.frameIndex}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Timestamp */}
+                      <p
+                        className={`text-xs mt-2 ${
+                          msg.role === "user"
+                            ? "text-slate-700"
+                            : "text-slate-400"
+                        }`}
+                      >
+                        {msg.timestamp.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
+
+              {/* Auto-scroll anchor */}
+              <div ref={messagesEndRef} />
+
+              {isProcessing && (
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-slate-700">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      className="h-5 w-5 text-slate-200 animate-spin"
+                    >
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <div className="text-sm text-slate-400">Processing...</div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Fixed input area at the bottom */}
+        <div className="w-full max-w-4xl mx-auto border-t border-slate-800 p-4">
+          <form onSubmit={handleSubmit} className="w-full">
+            <div className="flex items-end gap-3">
+              <div className="flex-1 flex flex-col">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={
+                    isProcessing
+                      ? "Processing video... hang tight."
+                      : "Ask me things like 'Find a person holding a laptop'"
+                  }
+                  rows={1}
+                  className="w-full resize-none bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none min-h-[48px] max-h-[120px]"
+                  style={{
+                    height: "auto",
+                    overflowY: "auto",
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = "auto";
+                    target.style.height =
+                      Math.min(target.scrollHeight, 120) + "px";
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit(e as any);
+                    }
+                  }}
+                  disabled={isProcessing}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={onFileSelected}
+                />
+
+                <button
+                  type="button"
+                  onClick={onUploadButtonClick}
+                  className="h-12 w-12 shrink-0 flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/60 text-slate-200 transition-colors disabled:opacity-60"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "#0C8CE9";
+                    e.currentTarget.style.color = "#0C8CE9";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "";
+                    e.currentTarget.style.color = "";
+                  }}
+                  disabled={isProcessing}
+                  aria-label="Upload video"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="h-5 w-5"
+                  >
+                    <path d="M3 7h2l2-3h6l2 3h2a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z" />
+                    <path d="m10 12 2 2 3-3" />
+                  </svg>
+                </button>
+
+                <button
+                  type="submit"
+                  className="h-12 w-12 shrink-0 flex items-center justify-center rounded-xl text-slate-950 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#0C8CE9" }}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.backgroundColor = "#0A7BD6";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!e.currentTarget.disabled) {
+                      e.currentTarget.style.backgroundColor = "#0C8CE9";
+                    }
+                  }}
+                  disabled={isProcessing && !results.length}
+                  aria-label="Send message"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className="h-5 w-5"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 px-4">
-        <form onSubmit={handleSubmit} className="pointer-events-auto">
-          <div className="flex items-end gap-3 rounded-3xl border border-slate-700/70 bg-slate-900/90 px-4 py-3 shadow-xl shadow-emerald-500/10 backdrop-blur">
-            <button
-              type="button"
-              onClick={onUploadButtonClick}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-700/70 bg-slate-900/60 text-slate-200 transition-colors hover:border-emerald-400 hover:text-emerald-300 disabled:opacity-60"
-              disabled={isProcessing}
-              aria-label="Upload video"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.6}
-                className="h-5 w-5"
-              >
-                <path d="M3 7h2l2-3h6l2 3h2a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z" />
-                <path d="m10 12 2 2 3-3" />
-              </svg>
-            </button>
-
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                isProcessing
-                  ? 'Processing video… hang tight.'
-                  : 'Ask me things like “Find a person holding a laptop”'
-              }
-              rows={1}
-              className="max-h-32 flex-1 resize-none bg-transparent text-base text-slate-100 placeholder:text-slate-500 focus:outline-none"
-            />
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={onFileSelected}
-            />
-
-            <button
-              type="submit"
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500 text-slate-950 transition-colors hover:bg-emerald-400 disabled:opacity-60"
-              disabled={isProcessing && !results.length}
-              aria-label="Send message"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.6}
-                className="h-5 w-5"
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-        </form>
-      </div>
-
+      {/* Lightbox for frame preview */}
       {lightboxFrame && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4">
-          <div className="relative w-full max-w-4xl space-y-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4"
+          onClick={() => setLightboxFrame(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setLightboxFrame(null)}
-              className="absolute -right-2 -top-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-slate-200 shadow-lg hover:bg-slate-800"
+              className="absolute -right-2 -top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-slate-200 shadow-lg hover:bg-slate-800"
               aria-label="Close preview"
             >
               ✕
@@ -507,7 +686,10 @@ export default function Home() {
             )}
             <div className="rounded-2xl border border-slate-700/70 bg-slate-900/80 p-4 text-sm text-slate-200">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-emerald-200">
+                <span
+                  className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold"
+                  style={{ color: "#0C8CE9" }}
+                >
                   {lightboxFrame.timestampFormatted}
                 </span>
                 <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -518,7 +700,12 @@ export default function Home() {
                 {lightboxFrame.objects.map((obj, idx) => (
                   <span
                     key={`${lightboxFrame.frameIndex}-${idx}-${obj.class}`}
-                    className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200"
+                    className="rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{
+                      border: "1px solid rgba(12, 140, 233, 0.4)",
+                      backgroundColor: "rgba(12, 140, 233, 0.1)",
+                      color: "#0C8CE9",
+                    }}
                   >
                     {obj.class} {(obj.confidence * 100).toFixed(0)}%
                   </span>
@@ -529,23 +716,5 @@ export default function Home() {
         </div>
       )}
     </main>
-  );
-}
-
-function SummaryTile({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: string;
-  description?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 shadow-inner shadow-black/30">
-      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-100">{value}</p>
-      {description && <p className="mt-1 text-xs text-slate-500">{description}</p>}
-    </div>
   );
 }
