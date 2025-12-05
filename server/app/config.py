@@ -21,7 +21,7 @@ from typing import List
 class Settings:
     """Runtime configuration loaded from environment variables."""
 
-    model_path: str = os.getenv("YOLO_MODEL_PATH", "yolov8n.pt")
+    model_path: str = os.getenv("YOLO_MODEL_PATH", "model.pt")
     frame_interval_seconds: float = float(os.getenv("FRAME_INTERVAL_SECONDS", "1.0"))
     min_confidence: float = float(os.getenv("MIN_CONFIDENCE", "0.6"))
     gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")

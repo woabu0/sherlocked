@@ -89,7 +89,6 @@ python main.py --video path/to/video.mp4 --target person --frame-interval 1 --mi
 ```
 
 ## Development Tips
-
 - Keep the backend running while interacting with the frontend UI.
 - Monitor backend logs for progress updates and errors.
 - Large videos may require increasing the frame interval or confidence
