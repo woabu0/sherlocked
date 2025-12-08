@@ -1,21 +1,8 @@
-"""
-Application configuration utilities.
-
-Environment variables control runtime behavior:
-
-- YOLO_MODEL_PATH: Path to the YOLO model weights (.pt file)
-- FRAME_INTERVAL_SECONDS: Seconds between sampled frames (float)
-- MIN_CONFIDENCE: Minimum confidence threshold for detections (float between 0-1)
-- CORS_ORIGINS: Comma-separated list of allowed origins for CORS
-"""
-
 from __future__ import annotations
-
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import List
-
 
 @dataclass(frozen=True)
 class Settings:
@@ -42,7 +29,4 @@ def get_settings() -> Settings:
     """Return a cached Settings instance."""
     return Settings()
 
-
 settings = get_settings()
-
-

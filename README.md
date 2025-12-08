@@ -1,95 +1,142 @@
-# Sherlocked
+# Sherlocked - AI Video Detective
 
-End-to-end object detection pipeline featuring a FastAPI backend for YOLO inference and a Next.js frontend for video uploads and visualization.
+Welcome to the **Sherlocked** project! This README provides an overview of the project, setup instructions, and other relevant details.
 
-## Project Structure
+## Table of Contents
 
-```
-.
-├── server/               # FastAPI application
-│   ├── app/
-│   │   ├── config.py
-│   │   ├── main.py        # API entrypoint
-│   │   └── services/
-│   │       └── detector.py
-│   └── requirements.txt
-├── client/                # Next.js 14 frontend
-│   └── app/
-│       └── api/process-video/route.ts
-├── main.py                # CLI helper for local processing
-├── yolov8n.pt             # Default YOLO model weights
-└── video.MOV              # Sample video (example)
-```
+- [Visit](#visit)
+- [About](#about)
+- [Features](#features)
+- [Installation](#installation)
+- [Structure](#structure)
+- [Contributors](#contributors)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Backend (FastAPI + YOLO)
+## Visit
 
-1. Create a Python virtual environment (Python 3.10+ recommended):
+- [Vercel](https://sherlocked0.vercel.app)
+
+## About
+
+**Sherlocked** is an advanced AI video detective platform that helps you find specific objects and scenes in video footage using natural language. Streamline your video analysis and uncover hidden details with our powerful computer vision pipeline and interactive chat interface.
+
+## Features
+
+- AI Object Detection
+- Natural Language Search
+- Interactive Chat Interface
+- Frame Extraction
+- Video Processing Pipeline
+- Real-time Progress Tracking
+- Confidence Filtering
+- Frame Gallery & Lightbox
+
+## Installation
+
+1. Clone the repository:
 
    ```bash
-   cd /Users/mdabubokar/Documents/sherlocked
-   python -m venv .venv
-   source .venv/bin/activate
+   git clone https://github.com/woabu0/sherlocked.git
    ```
 
-2. Install dependencies:
+2. Navigate to the project directory:
 
    ```bash
+   cd sherlocked
+   ```
+
+3. Set up the Backend (Python):
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
    pip install -r server/requirements.txt
    ```
 
-3. Ensure your YOLO model weights are accessible (default path `yolov8n.pt` at the
-   repository root). You can override via the `YOLO_MODEL_PATH` environment
-   variable.
-
-4. Run the API:
+4. Set up the Frontend (Node.js):
 
    ```bash
-   uvicorn server.app.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-5. Optional environment variables:
-
-   - `YOLO_MODEL_PATH`: custom path to `.pt` weights (defaults to `yolov8n.pt`)
-   - `FRAME_INTERVAL_SECONDS`: default frame sampling interval
-   - `MIN_CONFIDENCE`: default detection confidence threshold
-   - `CORS_ORIGINS`: comma-separated list of allowed origins
-
-## Frontend (Next.js)
-
-1. Install dependencies (one time):
-
-   ```bash
-   cd /Users/mdabubokar/Documents/sherlocked/client
+   cd client
    npm install
    ```
 
-2. Start the development server:
+5. Run the Application:
 
-   ```bash
-   npm run dev
-   ```
-
-3. Configure the backend URL via environment variable:
-
-   - Create `client/.env.local` with:
-
+   - Backend:
+     ```bash
+     python -m uvicorn server.app.main:app --reload --host 0.0.0.0 --port 8000
      ```
-     BACKEND_URL=http://localhost:8000
-     GEMINI_API_KEY=your_gemini_api_key
+   - Frontend:
+     ```bash
+     npm run dev
      ```
 
-   The Next.js route at `/api/process-video` proxies requests to the backend, and `/api/intent` uses Gemini to translate natural language queries into detector targets.
+## Structure
 
-## CLI Usage
-
-The `main.py` script allows running detections without the web UI:
-
-```bash
-python main.py --video path/to/video.mp4 --target person --frame-interval 1 --min-confidence 0.25 --output detections.json
+```
+sherlocked/
+├── client/                     # Frontend application (Next.js)
+│   ├── app/                    # App router
+│   │   ├── globals.css         # Global styles & theme variables
+│   │   ├── layout.tsx          # Root layout
+│   │   └── page.tsx            # Main chat interface
+│   ├── components/             # React components
+│   │   ├── chat/               # Chat-related components
+│   │   │   ├── chat-input.tsx
+│   │   │   └── chat-message.tsx
+│   │   ├── layout/             # Layout components
+│   │   │   └── header.tsx
+│   │   ├── media/              # Media display components
+│   │   │   └── lightbox.tsx
+│   │   └── ui/                 # Shared UI primitives
+│   │       └── glass-panel.tsx
+│   └── public/                 # Static assets
+├── server/                     # Backend application (FastAPI)
+│   └── app/
+│       ├── services/           # Business logic
+│       │   └── detector.py     # YOLO object detection service
+│       ├── config.py           # Configuration settings
+│       └── main.py             # API routes & entrypoint
+├── main.py                     # CLI entrypoint for local processing
+├── model.pt                    # YOLO model weights
+├── train.ipynb                 # Model training notebook
+└── README.md                   # Project documentation
 ```
 
-## Development Tips
-- Keep the backend running while interacting with the frontend UI.
-- Monitor backend logs for progress updates and errors.
-- Large videos may require increasing the frame interval or confidence
-  threshold to speed up processing.
+## Contributors
+
+<p align="center">
+  <a href="https://github.com/woabu0/sherlocked/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=woabu0/sherlocked" alt="Contributors" />
+  </a>
+</p>
+
+## Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch:
+
+   ```bash
+   git checkout -b feature-name
+   ```
+
+3. Commit your changes:
+
+   ```bash
+   git commit -m "Add feature-name"
+   ```
+
+4. Push to the branch:
+
+   ```bash
+   git push origin feature-name
+   ```
+
+5. Open a pull request.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

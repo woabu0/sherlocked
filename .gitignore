@@ -130,3 +130,4 @@ logs/
 # Build directories
 build/
 dist/
+!client/components/media/lightbox.tsx

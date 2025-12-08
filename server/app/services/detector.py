@@ -1,20 +1,10 @@
-"""
-YOLO-based object detection service.
-
-This module encapsulates the heavy lifting for video frame extraction and object
-inference so that it can be re-used by both the FastAPI endpoint and local CLI
-scripts.
-"""
-
 from __future__ import annotations
-
 import base64
 import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
-
 import cv2
 import numpy as np
 from ultralytics import YOLO
@@ -102,19 +92,6 @@ class DetectionService:
         target_object: Optional[str] = None,
         max_frames: Optional[int] = None,
     ) -> Dict[str, object]:
-        """
-        Run inference on the provided video file.
-
-        Args:
-            video_path: Path to the video file.
-            frame_interval_seconds: Seconds between sampled frames.
-            min_confidence: Minimum confidence for detections (overrides default).
-            target_object: Optional class name to filter detections of interest.
-            max_frames: Optional cap on the number of frames to process.
-
-        Returns:
-            Dictionary containing detections, summary metadata, and target hits.
-        """
         video_path = Path(video_path)
         if not video_path.exists():
             raise FileNotFoundError(f"Video file not found at {video_path}")
@@ -285,5 +262,3 @@ detector_service = DetectionService(
     model_path=settings.model_path,
     default_min_conf=settings.min_confidence,
 )
-
-

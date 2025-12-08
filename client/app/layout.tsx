@@ -1,10 +1,10 @@
 // app/layout.tsx
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'Sherlocked',
-  description: 'Detect objects in video footage using AI',
+  title: "Sherlocked",
+  description: "Detect objects in video footage using AI",
 };
 
 export default function RootLayout({

@@ -1,9 +1,4 @@
-"""
-FastAPI application exposing endpoints for video object detection.
-"""
-
 from __future__ import annotations
-
 import json
 import logging
 import os
@@ -12,14 +7,12 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Optional
-
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
 from .config import settings
 from .services.detector import detector_service
 
@@ -247,5 +240,3 @@ async def parse_intent(payload: IntentRequest) -> IntentResponse:
     targets = sorted({target for target in targets if target and target not in STOPWORDS})
 
     return IntentResponse(targets=targets)
-
-

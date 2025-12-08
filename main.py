@@ -1,18 +1,8 @@
-"""
-Command line helper for the Sherlocked object detection service.
-
-Example usage:
-    python main.py --video path/to/video.mp4 --target person --frame-interval 1.5
-"""
-
 from __future__ import annotations
-
 import argparse
 import json
 from pathlib import Path
-
 from backend.app.services.detector import detector_service
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run YOLO object detection on a video.")
@@ -78,4 +68,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

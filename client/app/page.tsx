@@ -7,6 +7,10 @@ import {
   DetectionSummary,
   ProcessVideoResponse,
 } from "@/types";
+import { Header } from "@/components/layout/header";
+import { ChatMessage } from "@/components/chat/chat-message";
+import { ChatInput } from "@/components/chat/chat-input";
+import { Lightbox } from "@/components/media/lightbox";
 
 const MIN_CONFIDENCE = 0.6;
 const BACKEND_URL =
@@ -51,7 +55,7 @@ type FrameMatch = {
   objects: Detection[];
 };
 
-type ChatMessage = {
+type ChatMessageData = {
   id: number;
   role: "assistant" | "user";
   content?: string;
@@ -69,7 +73,7 @@ export default function Home() {
   const [results, setResults] = useState<DetectionResult[]>([]);
   const [summary, setSummary] = useState<DetectionSummary | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<ChatMessageData[]>([
     {
       id: Date.now(),
       role: "assistant",
@@ -213,7 +217,7 @@ export default function Home() {
           try {
             const errorData = await response.json();
             errorDetail = errorData.detail || errorData.error || errorDetail;
-          } catch (e) {
+          } catch {
             errorDetail = response.statusText;
           }
           throw new Error(errorDetail);
@@ -351,369 +355,108 @@ export default function Home() {
   );
 
   return (
-    <main className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden">
-      <div className="w-full flex flex-col h-full">
-        {/* Header */}
-        <div className="mb-3 flex items-center justify-between px-6 py-4 border-b border-slate-800">
-          <h1 className="text-2xl font-semibold text-slate-50">Sherlocked</h1>
-          {summary && (
-            <div className="flex items-center gap-4 text-xs">
-              <div className="text-slate-400">
-                <span className="font-semibold" style={{ color: "#0C8CE9" }}>
-                  {summary.processed_frames}
-                </span>{" "}
-                frames
-              </div>
-              <div className="text-slate-400">
-                <span className="font-semibold" style={{ color: "#0C8CE9" }}>
-                  {summary.detections_found}
-                </span>{" "}
-                detections
-              </div>
-            </div>
-          )}
-        </div>
+    <main className="flex h-screen bg-transparent text-slate-100 overflow-hidden relative selection:bg-indigo-500/30">
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-900/20 rounded-full blur-[120px] animate-pulse-glow" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-pink-900/10 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="w-full flex flex-col h-full z-10 relative">
+        <Header 
+          processedFrames={summary?.processed_frames}
+          detectionsFound={summary?.detections_found}
+        />
 
         {/* Main chat container */}
-        <div className="flex-1 mx-auto w-full max-w-4xl flex flex-col px-6 overflow-hidden">
-          <div className="p-6 flex flex-col h-full min-h-0">
+        <div className="flex-1 mx-auto w-full max-w-4xl flex flex-col px-6 overflow-hidden mt-4">
+          <div className="flex-1 flex flex-col min-h-0 relative">
             {/* Scrollable messages container */}
             <div
-              className="space-y-4 mb-4 flex-1 overflow-y-auto min-h-0 hide-scrollbar"
+              className="space-y-6 pb-4 flex-1 overflow-y-auto min-h-0 hide-scrollbar px-2"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
               }}
             >
               {messages.length === 0 && (
-                <div className="text-center text-slate-400 flex items-center justify-center gap-2 h-full">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className="h-8 w-8"
-                  >
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                    <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-                  </svg>
-                  <span className="text-lg">
-                    Hi, I'm Sherlocked. Upload a video to get started!
-                  </span>
+                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4 animate-fade-in">
+                  <div className="h-20 w-20 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-white/5 shadow-xl">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      className="h-10 w-10 text-indigo-400"
+                    >
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                      <line x1="21" x2="9" y1="12" y2="12" />
+                      <path d="M21 12l-5-5" />
+                      <path d="M21 12l-5 5" />
+                    </svg>
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-xl font-semibold text-slate-200 mb-2">Welcome to Sherlocked</h3>
+                    <p className="text-sm">Upload a video to start your investigation.</p>
+                  </div>
                 </div>
               )}
 
               {messages.map((msg) => (
-                <div
+                <ChatMessage
                   key={msg.id}
-                  className={`flex items-start gap-3 ${
-                    msg.role === "user" ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                      msg.role === "user" ? "" : "bg-slate-700"
-                    }`}
-                    style={
-                      msg.role === "user" ? { backgroundColor: "#0C8CE9" } : {}
-                    }
-                  >
-                    {msg.role === "user" ? (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        className="h-5 w-5 text-slate-950"
-                      >
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        className="h-5 w-5 text-slate-200"
-                      >
-                        <rect x="3" y="8" width="18" height="12" rx="2" />
-                        <rect x="7" y="2" width="10" height="6" rx="1" />
-                        <circle cx="9" cy="14" r="1.5" />
-                        <circle cx="15" cy="14" r="1.5" />
-                        <path d="M9 18h6" />
-                      </svg>
-                    )}
-                  </div>
-
-                  {/* Message content */}
-                  <div
-                    className={`flex-1 ${
-                      msg.role === "user" ? "text-right" : ""
-                    }`}
-                  >
-                    <div
-                      className={`inline-block rounded-2xl px-4 py-3 max-w-[85%] ${
-                        msg.role === "user"
-                          ? "text-slate-950"
-                          : "bg-slate-800 text-slate-100 border border-slate-700"
-                      }`}
-                      style={
-                        msg.role === "user" ? { backgroundColor: "#0C8CE9" } : {}
-                      }
-                    >
-                      {msg.content && (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {msg.content}
-                        </p>
-                      )}
-
-                      {/* Frame gallery */}
-                      {msg.frames && msg.frames.length > 0 && (
-                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {msg.frames.map((frame) => (
-                            <button
-                              key={`${frame.frameIndex}-${frame.timestamp}`}
-                              type="button"
-                              onClick={() => setLightboxFrame(frame)}
-                              className="group relative overflow-hidden rounded-lg border border-slate-700/60 bg-slate-900/60 transition-transform hover:scale-105"
-                            >
-                              {frame.image ? (
-                                <img
-                                  src={`data:image/jpeg;base64,${frame.image}`}
-                                  alt={`Frame ${frame.frameIndex}`}
-                                  className="h-32 w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-32 w-full items-center justify-center bg-slate-800 text-xs text-slate-400">
-                                  No preview
-                                </div>
-                              )}
-                              <div className="absolute inset-0 bg-linear-to-t from-slate-950/80 via-transparent" />
-                              <div
-                                className="absolute left-2 bottom-2 text-xs font-semibold"
-                                style={{ color: "#0C8CE9" }}
-                              >
-                                {frame.timestampFormatted}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Timestamp */}
-                      <p
-                        className={`text-xs mt-2 ${
-                          msg.role === "user"
-                            ? "text-slate-700"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        {msg.timestamp.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  id={msg.id}
+                  role={msg.role}
+                  content={msg.content}
+                  frames={msg.frames}
+                  timestamp={msg.timestamp}
+                  onFrameClick={(frame) => setLightboxFrame(frame)}
+                />
               ))}
 
               {/* Auto-scroll anchor */}
               <div ref={messagesEndRef} />
 
               {isProcessing && (
-                <div className="flex items-center gap-3">
-                  <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-slate-700">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      className="h-5 w-5 text-slate-200 animate-spin"
-                    >
-                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                      <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
+                <div className="flex items-center gap-3 animate-slide-up pl-2">
+                  <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-slate-800/80 border border-white/5">
+                    <div className="h-5 w-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
                   </div>
-                  <div className="text-sm text-slate-400">Processing...</div>
+                  <div className="text-sm text-slate-400 font-medium">Processing footage...</div>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Fixed input area at the bottom */}
-        <div className="w-full max-w-4xl mx-auto border-t border-slate-800 p-4">
-          <form onSubmit={handleSubmit} className="w-full">
-            <div className="flex items-end gap-3">
-              <div className="flex-1 flex flex-col">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={
-                    isProcessing
-                      ? "Processing video... hang tight."
-                      : "Ask me things like 'Find a person holding a laptop'"
-                  }
-                  rows={1}
-                  className="w-full resize-none bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none min-h-[48px] max-h-[120px]"
-                  style={{
-                    height: "auto",
-                    overflowY: "auto",
-                  }}
-                  onInput={(e) => {
-                    const target = e.target as HTMLTextAreaElement;
-                    target.style.height = "auto";
-                    target.style.height =
-                      Math.min(target.scrollHeight, 120) + "px";
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSubmit(e as any);
-                    }
-                  }}
-                  disabled={isProcessing}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={onFileSelected}
-                />
-
-                <button
-                  type="button"
-                  onClick={onUploadButtonClick}
-                  className="h-12 w-12 shrink-0 flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/60 text-slate-200 transition-colors disabled:opacity-60"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "#0C8CE9";
-                    e.currentTarget.style.color = "#0C8CE9";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "";
-                    e.currentTarget.style.color = "";
-                  }}
-                  disabled={isProcessing}
-                  aria-label="Upload video"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className="h-5 w-5"
-                  >
-                    <path d="M3 7h2l2-3h6l2 3h2a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H3a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3z" />
-                    <path d="m10 12 2 2 3-3" />
-                  </svg>
-                </button>
-
-                <button
-                  type="submit"
-                  className="h-12 w-12 shrink-0 flex items-center justify-center rounded-xl text-slate-950 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#0C8CE9" }}
-                  onMouseEnter={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.backgroundColor = "#0A7BD6";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!e.currentTarget.disabled) {
-                      e.currentTarget.style.backgroundColor = "#0C8CE9";
-                    }
-                  }}
-                  disabled={isProcessing && !results.length}
-                  aria-label="Send message"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    className="h-5 w-5"
-                  >
-                    <path d="M5 12h14" />
-                    <path d="m12 5 7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </form>
+        {/* Input Area */}
+        <div className="w-full max-w-4xl mx-auto p-6 pb-8">
+          <ChatInput
+            input={input}
+            setInput={setInput}
+            onSubmit={(e) => handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>)}
+            onUploadClick={onUploadButtonClick}
+            isProcessing={isProcessing}
+            hasResults={results.length > 0}
+          />
+          
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={onFileSelected}
+          />
         </div>
       </div>
 
-      {/* Lightbox for frame preview */}
+      {/* Lightbox */}
       {lightboxFrame && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4"
-          onClick={() => setLightboxFrame(null)}
-        >
-          <div
-            className="relative w-full max-w-4xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setLightboxFrame(null)}
-              className="absolute -right-2 -top-2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-slate-200 shadow-lg hover:bg-slate-800"
-              aria-label="Close preview"
-            >
-              ✕
-            </button>
-            {lightboxFrame.image ? (
-              <img
-                src={`data:image/jpeg;base64,${lightboxFrame.image}`}
-                alt={`Frame ${lightboxFrame.frameIndex}`}
-                className="w-full max-h-[75vh] rounded-3xl object-contain"
-              />
-            ) : (
-              <div className="flex h-[60vh] items-center justify-center rounded-3xl border border-slate-700 bg-slate-900/70 text-slate-300">
-                No preview available
-              </div>
-            )}
-            <div className="rounded-2xl border border-slate-700/70 bg-slate-900/80 p-4 text-sm text-slate-200">
-              <div className="flex flex-wrap items-center gap-3">
-                <span
-                  className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold"
-                  style={{ color: "#0C8CE9" }}
-                >
-                  {lightboxFrame.timestampFormatted}
-                </span>
-                <span className="rounded-full bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-300">
-                  Frame #{lightboxFrame.frameIndex}
-                </span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {lightboxFrame.objects.map((obj, idx) => (
-                  <span
-                    key={`${lightboxFrame.frameIndex}-${idx}-${obj.class}`}
-                    className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{
-                      border: "1px solid rgba(12, 140, 233, 0.4)",
-                      backgroundColor: "rgba(12, 140, 233, 0.1)",
-                      color: "#0C8CE9",
-                    }}
-                  >
-                    {obj.class} {(obj.confidence * 100).toFixed(0)}%
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <Lightbox 
+          frame={lightboxFrame} 
+          onClose={() => setLightboxFrame(null)} 
+        />
       )}
     </main>
   );
