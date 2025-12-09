@@ -3,6 +3,8 @@ export interface Detection {
   class: string;
   confidence: number;
   bbox: number[];
+  color?: string;
+  color_rgb?: number[];
 }
 
 export interface DetectionResult {

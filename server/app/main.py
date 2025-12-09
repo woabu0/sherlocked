@@ -128,6 +128,8 @@ class IntentRequest(BaseModel):
 
 class IntentResponse(BaseModel):
     targets: List[str]
+    colors: List[str] = []
+    pairs: List[dict] = []  # List of {"object": str, "color": str} pairs
 
 
 STOPWORDS = {
@@ -166,15 +168,22 @@ STOPWORDS = {
 async def parse_intent(payload: IntentRequest) -> IntentResponse:
     query = payload.query.strip()
     if not query:
-        return IntentResponse(targets=[])
+        return IntentResponse(targets=[], colors=[], pairs=[])
 
     targets: List[str] = []
+    colors: List[str] = []
+    pairs: List[dict] = []
 
     if settings.gemini_api_key:
         prompt = (
             "You extract computer-vision detection intents from natural language.\n"
-            'Respond ONLY with a JSON object shaped like {"targets": ["object1", "object2"]} listing the relevant objects to detect.\n'
-            'Use lowercase singular nouns (e.g., "person", "car", "laptop"). Omit unrelated words.\n'
+            'Respond ONLY with a JSON object shaped like {"pairs": [{"object": "shirt", "color": "blue"}, {"object": "glasses", "color": "black"}]} for queries with specific object-color combinations.\n'
+            'Use lowercase singular nouns (e.g., "person", "car", "laptop"). For colors, use basic color names (e.g., "red", "blue", "green", "yellow", "black", "white", "gray", "orange", "purple", "pink", "cyan").\n'
+            'Example: "find a person wearing a blue shirt and black glasses" -> {"pairs": [{"object": "shirt", "color": "blue"}, {"object": "glasses", "color": "black"}]}\n'
+            'Example: "find a red car" -> {"pairs": [{"object": "car", "color": "red"}]}\n'
+            'Example: "find a person" -> {"pairs": [{"object": "person", "color": null}]}\n'
+            'If a color is specified for an object, include it in the pair. If no color, set color to null.\n'
+            'Omit unrelated words.\n'
             f"User request: \"{query}\"\n"
             "JSON response:"
         )
@@ -215,13 +224,42 @@ async def parse_intent(payload: IntentRequest) -> IntentResponse:
                 if match:
                     try:
                         parsed_json = json.loads(match.group(0))
-                        candidate_targets = parsed_json.get("targets", [])
-                        if isinstance(candidate_targets, list):
-                            targets.extend(
-                                target.strip().lower()
-                                for target in candidate_targets
-                                if isinstance(target, str) and target.strip()
-                            )
+                        
+                        # Extract pairs if available
+                        candidate_pairs = parsed_json.get("pairs", [])
+                        if isinstance(candidate_pairs, list):
+                            for pair in candidate_pairs:
+                                if isinstance(pair, dict):
+                                    obj = pair.get("object", "").strip().lower()
+                                    color = pair.get("color", "")
+                                    if color:
+                                        color = color.strip().lower()
+                                    
+                                    if obj:
+                                        if color and color != "null":
+                                            pairs.append({"object": obj, "color": color})
+                                            targets.append(obj)
+                                            colors.append(color)
+                                        else:
+                                            targets.append(obj)
+                        
+                        # Fallback: also check for old format
+                        if not pairs:
+                            candidate_targets = parsed_json.get("targets", [])
+                            if isinstance(candidate_targets, list):
+                                targets.extend(
+                                    target.strip().lower()
+                                    for target in candidate_targets
+                                    if isinstance(target, str) and target.strip()
+                                )
+                            
+                            candidate_colors = parsed_json.get("colors", [])
+                            if isinstance(candidate_colors, list):
+                                colors.extend(
+                                    color.strip().lower()
+                                    for color in candidate_colors
+                                    if isinstance(color, str) and color.strip()
+                                )
                     except json.JSONDecodeError as exc:  # pragma: no cover - malformed model reply
                         logger.warning("Failed to decode Gemini intent JSON: %s", exc)
             else:
@@ -233,10 +271,50 @@ async def parse_intent(payload: IntentRequest) -> IntentResponse:
         except Exception:  # pragma: no cover - network failure, etc.
             logger.exception("Gemini intent extraction failed")
 
-    if not targets:
+    # Fallback: extract colors and targets from query using pattern matching
+    if not targets and not colors and not pairs:
         tokens = re.findall(r"\b[a-z]{3,}\b", query.lower())
-        targets = sorted({token for token in tokens if token not in STOPWORDS})
-
+        
+        # Common color names
+        color_keywords = {
+            "red", "blue", "green", "yellow", "orange", "purple", "pink",
+            "black", "white", "gray", "grey", "brown", "cyan", "navy",
+            "maroon", "violet", "indigo", "turquoise", "lime", "olive",
+            "teal", "aqua", "magenta", "silver", "gold", "beige", "tan",
+        }
+        
+        # Try to extract color-object pairs using simple pattern matching
+        # Pattern: "color object" (e.g., "blue shirt", "black glasses")
+        words = query.lower().split()
+        for i in range(len(words) - 1):
+            if words[i] in color_keywords and words[i+1] not in STOPWORDS and words[i+1] not in color_keywords:
+                pairs.append({"object": words[i+1], "color": words[i]})
+                targets.append(words[i+1])
+                colors.append(words[i])
+        
+        # If no pairs found, extract colors and targets separately
+        if not pairs:
+            for token in tokens:
+                if token in color_keywords:
+                    colors.append(token)
+                elif token not in STOPWORDS:
+                    targets.append(token)
+        
+        targets = sorted(set(targets))
+        colors = sorted(set(colors))
+    
+    # Clean up results
     targets = sorted({target for target in targets if target and target not in STOPWORDS})
+    colors = sorted(set(colors))
+    
+    # Remove duplicates from pairs
+    unique_pairs = []
+    seen = set()
+    for pair in pairs:
+        key = (pair.get("object", ""), pair.get("color", ""))
+        if key not in seen:
+            seen.add(key)
+            unique_pairs.append(pair)
+    pairs = unique_pairs
 
-    return IntentResponse(targets=targets)
+    return IntentResponse(targets=targets, colors=colors, pairs=pairs)

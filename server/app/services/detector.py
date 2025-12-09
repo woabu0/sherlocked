@@ -28,6 +28,7 @@ if add_safe_globals and DetectionModel:
         )
 
 from ..config import settings
+from .color_extractor import extract_dominant_color
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +40,20 @@ class Detection:
     class_name: str
     confidence: float
     bbox: List[float]
+    color: Optional[str] = None
+    color_rgb: Optional[List[int]] = None
 
-    def to_dict(self) -> Dict[str, float | str | List[float]]:
-        return {
+    def to_dict(self) -> Dict[str, float | str | List[float] | List[int] | None]:
+        result: Dict[str, float | str | List[float] | List[int] | None] = {
             "class": self.class_name,
             "confidence": self.confidence,
             "bbox": self.bbox,
         }
+        if self.color is not None:
+            result["color"] = self.color
+        if self.color_rgb is not None:
+            result["color_rgb"] = self.color_rgb
+        return result
 
 
 @dataclass
@@ -230,11 +238,17 @@ class DetectionService:
                 cls_id = int(cls_tensor.item())
                 class_name = names.get(cls_id, str(cls_id))
                 bbox = frame_result.boxes.xyxy[idx].tolist()
+                
+                # Extract color information from the detected object
+                color_name, color_rgb = extract_dominant_color(frame, bbox)
+                
                 objects.append(
                     Detection(
                         class_name=class_name,
                         confidence=confidence,
                         bbox=[float(coord) for coord in bbox],
+                        color=color_name,
+                        color_rgb=color_rgb,
                     )
                 )
 

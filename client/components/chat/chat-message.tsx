@@ -18,6 +18,73 @@ interface ChatMessageProps {
   onFrameClick: (frame: FrameMatch) => void;
 }
 
+// Helper functions for color badge styling
+function getColorBadgeBackground(color?: string): string {
+  if (!color) return "rgba(100, 116, 139, 0.3)";
+  
+  const colorMap: Record<string, string> = {
+    red: "rgba(239, 68, 68, 0.3)",
+    blue: "rgba(59, 130, 246, 0.3)",
+    green: "rgba(34, 197, 94, 0.3)",
+    yellow: "rgba(234, 179, 8, 0.3)",
+    orange: "rgba(249, 115, 22, 0.3)",
+    purple: "rgba(168, 85, 247, 0.3)",
+    pink: "rgba(236, 72, 153, 0.3)",
+    cyan: "rgba(6, 182, 212, 0.3)",
+    white: "rgba(241, 245, 249, 0.3)",
+    black: "rgba(15, 23, 42, 0.5)",
+    gray: "rgba(100, 116, 139, 0.3)",
+    grey: "rgba(100, 116, 139, 0.3)",
+    brown: "rgba(120, 53, 15, 0.3)",
+  };
+  
+  return colorMap[color.toLowerCase()] || "rgba(100, 116, 139, 0.3)";
+}
+
+function getColorBadgeBorder(color?: string): string {
+  if (!color) return "rgba(148, 163, 184, 0.5)";
+  
+  const colorMap: Record<string, string> = {
+    red: "rgba(239, 68, 68, 0.6)",
+    blue: "rgba(59, 130, 246, 0.6)",
+    green: "rgba(34, 197, 94, 0.6)",
+    yellow: "rgba(234, 179, 8, 0.6)",
+    orange: "rgba(249, 115, 22, 0.6)",
+    purple: "rgba(168, 85, 247, 0.6)",
+    pink: "rgba(236, 72, 153, 0.6)",
+    cyan: "rgba(6, 182, 212, 0.6)",
+    white: "rgba(241, 245, 249, 0.6)",
+    black: "rgba(71, 85, 105, 0.6)",
+    gray: "rgba(148, 163, 184, 0.6)",
+    grey: "rgba(148, 163, 184, 0.6)",
+    brown: "rgba(146, 64, 14, 0.6)",
+  };
+  
+  return colorMap[color.toLowerCase()] || "rgba(148, 163, 184, 0.5)";
+}
+
+function getColorBadgeText(color?: string): string {
+  if (!color) return "#e2e8f0";
+  
+  const colorMap: Record<string, string> = {
+    red: "#fecaca",
+    blue: "#bfdbfe",
+    green: "#bbf7d0",
+    yellow: "#fef08a",
+    orange: "#fed7aa",
+    purple: "#e9d5ff",
+    pink: "#fbcfe8",
+    cyan: "#a5f3fc",
+    white: "#f1f5f9",
+    black: "#cbd5e1",
+    gray: "#e2e8f0",
+    grey: "#e2e8f0",
+    brown: "#fcd34d",
+  };
+  
+  return colorMap[color.toLowerCase()] || "#e2e8f0";
+}
+
 export function ChatMessage({
   role,
   content,
@@ -109,9 +176,30 @@ export function ChatMessage({
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-60" />
+                  
+                  {/* Timestamp */}
                   <div className="absolute left-2 bottom-2 text-xs font-bold text-indigo-300">
                     {frame.timestampFormatted}
                   </div>
+                  
+                  {/* Color badges */}
+                  {frame.objects.some(obj => obj.color) && (
+                    <div className="absolute top-2 right-2 flex flex-wrap gap-1 justify-end max-w-[80%]">
+                      {Array.from(new Set(frame.objects.map(obj => obj.color).filter(Boolean))).map((color) => (
+                        <span
+                          key={color}
+                          className="px-2 py-0.5 text-[10px] font-semibold rounded-full border backdrop-blur-sm"
+                          style={{
+                            backgroundColor: getColorBadgeBackground(color),
+                            borderColor: getColorBadgeBorder(color),
+                            color: getColorBadgeText(color),
+                          }}
+                        >
+                          {color}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>

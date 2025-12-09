@@ -118,20 +118,86 @@ export default function Home() {
     [appendMessage]
   );
 
+  const colorMatches = useCallback((detectedColor: string | undefined, queryColor: string): boolean => {
+    if (!detectedColor) return false;
+    
+    const detected = detectedColor.toLowerCase().trim();
+    const query = queryColor.toLowerCase().trim();
+    
+    // Strict exact match only
+    return detected === query;
+  }, []);
+
   const findMatchingFrames = useCallback(
-    (targets: string[]): FrameMatch[] => {
-      if (!targets.length) return [];
-      const normalized = targets
+    (targets: string[], colors: string[], pairs: Array<{object: string, color: string}>): FrameMatch[] => {
+      // If pairs are specified, use conjunctive matching (ALL pairs must be present)
+      if (pairs && pairs.length > 0) {
+        return results.reduce<FrameMatch[]>((acc, frame) => {
+          // Check if ALL pairs are satisfied in this frame
+          const allPairsSatisfied = pairs.every((pair) => {
+            return frame.objects.some((obj) => {
+              if (obj.confidence < MIN_CONFIDENCE) return false;
+              
+              const label = obj.class.toLowerCase();
+              const objectMatches = label.includes(pair.object.toLowerCase());
+              const colorMatchesObj = colorMatches(obj.color, pair.color);
+              
+              return objectMatches && colorMatchesObj;
+            });
+          });
+          
+          if (!allPairsSatisfied) {
+            return acc;
+          }
+          
+          // Collect all objects that match any of the pairs
+          const matchingObjects = frame.objects.filter((obj) => {
+            if (obj.confidence < MIN_CONFIDENCE) return false;
+            
+            return pairs.some((pair) => {
+              const label = obj.class.toLowerCase();
+              const objectMatches = label.includes(pair.object.toLowerCase());
+              const colorMatchesObj = colorMatches(obj.color, pair.color);
+              return objectMatches && colorMatchesObj;
+            });
+          });
+          
+          acc.push({
+            frameIndex: frame.frame_index,
+            timestamp: frame.timestamp,
+            timestampFormatted: formatTimestamp(frame.timestamp),
+            image: frame.image,
+            objects: matchingObjects,
+          });
+          return acc;
+        }, []);
+      }
+      
+      // Fallback to old behavior for backward compatibility
+      if (!targets.length && !colors.length) return [];
+      const normalizedTargets = targets
         .map((target) => target.trim().toLowerCase())
         .filter(Boolean);
+      const normalizedColors = colors
+        .map((color) => color.trim().toLowerCase())
+        .filter(Boolean);
 
-      if (!normalized.length) return [];
+      if (!normalizedTargets.length && !normalizedColors.length) return [];
 
       return results.reduce<FrameMatch[]>((acc, frame) => {
         const matchingObjects = frame.objects.filter((obj) => {
           if (obj.confidence < MIN_CONFIDENCE) return false;
+          
+          // Check object type match
           const label = obj.class.toLowerCase();
-          return normalized.some((term) => label.includes(term));
+          const typeMatches = normalizedTargets.length === 0 || 
+            normalizedTargets.some((term) => label.includes(term));
+          
+          // Check color match
+          const colorMatchesQuery = normalizedColors.length === 0 || 
+            normalizedColors.some((queryColor) => colorMatches(obj.color, queryColor));
+          
+          return typeMatches && colorMatchesQuery;
         });
 
         if (matchingObjects.length === 0) {
@@ -148,11 +214,11 @@ export default function Home() {
         return acc;
       }, []);
     },
-    [results]
+    [results, colorMatches]
   );
 
   const interpretQuery = useCallback(
-    async (text: string): Promise<string[]> => {
+    async (text: string): Promise<{ targets: string[]; colors: string[]; pairs: Array<{object: string, color: string}> }> => {
       try {
         const response = await fetch(`${BACKEND_URL}/api/intent`, {
           method: "POST",
@@ -164,15 +230,36 @@ export default function Home() {
 
         if (response.ok) {
           const data = await response.json();
-          if (Array.isArray(data.targets)) {
-            const targets = data.targets
-              .map((target: unknown) =>
-                typeof target === "string" ? target.trim().toLowerCase() : ""
-              )
-              .filter((target: string) => target && !STOPWORDS.has(target));
-            if (targets.length) {
-              return Array.from(new Set(targets));
-            }
+          const targets = Array.isArray(data.targets)
+            ? data.targets
+                .map((target: unknown) =>
+                  typeof target === "string" ? target.trim().toLowerCase() : ""
+                )
+                .filter((target: string) => target && !STOPWORDS.has(target))
+            : [];
+          const colors = Array.isArray(data.colors)
+            ? data.colors
+                .map((color: unknown) =>
+                  typeof color === "string" ? color.trim().toLowerCase() : ""
+                )
+                .filter((color: string) => color)
+            : [];
+          const pairs = Array.isArray(data.pairs)
+            ? data.pairs
+                .filter((pair: any) => pair && typeof pair === "object")
+                .map((pair: any) => ({
+                  object: String(pair.object || "").trim().toLowerCase(),
+                  color: String(pair.color || "").trim().toLowerCase(),
+                }))
+                .filter((pair: any) => pair.object && pair.color)
+            : [];
+          
+          if (targets.length || colors.length || pairs.length) {
+            return {
+              targets: Array.from(new Set(targets)),
+              colors: Array.from(new Set(colors)),
+              pairs,
+            };
           }
         }
       } catch (error) {
@@ -186,7 +273,7 @@ export default function Home() {
       const fallback = (
         text.toLowerCase().match(/\b[a-z]{3,}\b/g) ?? []
       ).filter((word) => !STOPWORDS.has(word));
-      return Array.from(new Set(fallback));
+      return { targets: Array.from(new Set(fallback)), colors: [], pairs: [] };
     },
     [handleLog]
   );
@@ -306,9 +393,9 @@ export default function Home() {
         return;
       }
 
-      const targets = await interpretQuery(message);
+      const { targets, colors, pairs } = await interpretQuery(message);
 
-      if (!targets.length) {
+      if (!targets.length && !colors.length && !pairs.length) {
         appendMessage(
           "assistant",
           "I'm not sure what objects to look for there. Try mentioning the items explicitly."
@@ -316,15 +403,22 @@ export default function Home() {
         return;
       }
 
-      const matches = findMatchingFrames(targets);
+      const matches = findMatchingFrames(targets, colors, pairs);
 
       if (!matches.length) {
-        appendMessage(
-          "assistant",
-          `I searched for ${targets.join(
-            ", "
-          )} but couldn't spot them in this footage.`
-        );
+        if (pairs.length > 0) {
+          const pairDescriptions = pairs.map(p => `${p.color} ${p.object}`).join(" and ");
+          appendMessage(
+            "assistant",
+            `I searched for frames with ${pairDescriptions} but couldn't find any matches. All specified items must be present in the same frame.`
+          );
+        } else {
+          const searchTerms = [...targets, ...colors].join(", ");
+          appendMessage(
+            "assistant",
+            `I searched for ${searchTerms} but couldn't spot them in this footage.`
+          );
+        }
         return;
       }
 
@@ -335,12 +429,30 @@ export default function Home() {
           )
         )
       );
+      
+      const matchedColors = Array.from(
+        new Set(
+          matches.flatMap((frame) =>
+            frame.objects.map((obj) => obj.color).filter(Boolean)
+          )
+        )
+      );
 
-      const summaryLine = `Here ${matches.length > 1 ? "are" : "is"} ${
+      let summaryLine = `Here ${matches.length > 1 ? "are" : "is"} ${
         matches.length
-      } frame${matches.length > 1 ? "s" : ""} showing ${matchedLabels.join(
-        ", "
-      )}.`;
+      } frame${matches.length > 1 ? "s" : ""}`;
+      
+      if (pairs.length > 0) {
+        const pairDescriptions = pairs.map(p => `${p.color} ${p.object}`).join(" and ");
+        summaryLine += ` with ${pairDescriptions}`;
+      } else {
+        summaryLine += ` showing ${matchedLabels.join(", ")}`;
+        if (matchedColors.length > 0) {
+          summaryLine += ` (colors: ${matchedColors.join(", ")})`;
+        }
+      }
+      
+      summaryLine += ".";
 
       appendMessage("assistant", summaryLine, matches);
     },
@@ -373,7 +485,7 @@ export default function Home() {
           <div className="flex-1 flex flex-col min-h-0 relative">
             {/* Scrollable messages container */}
             <div
-              className="space-y-6 pb-4 flex-1 overflow-y-auto min-h-0 hide-scrollbar px-2"
+              className="space-y-6 p-6 flex-1 overflow-y-auto min-h-0 hide-scrollbar bg-slate-950/60 backdrop-blur-md rounded-2xl border border-white/5"
               style={{
                 scrollbarWidth: "none",
                 msOverflowStyle: "none",
